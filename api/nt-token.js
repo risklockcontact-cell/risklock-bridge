@@ -8,11 +8,24 @@ export default async function handler(req, res) {
 
     const base = ntApiBase || "https://ecosystemapi.ninjatrader.com";
 
-    const r = await fetch(base + "/v1/auth/testToken", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept":"application/json" },
-      body: JSON.stringify({ userName, password, note: "risklock bridge" }),
-    });
+    // Encabezados “de navegador” para esquivar WAFs
+    const headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json,text/plain,*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Connection": "keep-alive",
+      // UA de navegador real
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      // Algunos WAFs miran estos
+      "Origin": "https://ecosystem.ninjatrader.com",
+      "Referer": "https://ecosystem.ninjatrader.com/"
+    };
+
+    const body = JSON.stringify({ userName, password, note: "risklock bridge" });
+
+    const r = await fetch(base + "/v1/auth/testToken", { method: "POST", headers, body });
 
     const text = await r.text();
     if (!r.ok) return res.status(r.status).json({ error: "testToken failed", body: text });
@@ -24,9 +37,11 @@ export default async function handler(req, res) {
         bearer = `Bearer ${j.userId} ${j.userName} ${j.accessToken}`;
       }
     } catch {}
+
     if (!/^Bearer\s+\S+/.test(bearer)) return res.status(500).json({ error: "unexpected token", body: text });
 
-    res.status(200).json({ bearer, ttlSeconds: 5400 }); // ~90 min
+    // 90 min aprox
+    res.status(200).json({ bearer, ttlSeconds: 5400 });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
